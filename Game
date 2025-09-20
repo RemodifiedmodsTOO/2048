@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link href="https://fonts.googleapis.com/css?family=Nunito:200,400,800" rel="stylesheet">
+  <title>2048 - Simple (con CODE)</title>
+  <style>
+    :root {
+      --bg: #faf8ef;
+      --board: #bbada0;
+      --cell: #cdc1b4;
+      --font: 'Nunito', sans-serif;
+      --tile2: #eee4da;
+      --tile4: #ede0c8;
+      --tile8: #f2b179;
+      --tile16: #f59563;
+      --tile32: #f67c5f;
+      --tile64: #f65e3b;
+      --tile128: #edcf72;
+      --tile256: #edcc61;
+      --tile512: #edc850;
+      --tile1024: #edc53f;
+      --tile2048: #edc22e;
+    }
+    html,body{height:100%;margin:0;background:var(--bg);font-family:var(--font);-webkit-font-smoothing:antialiased}
+    .game{max-width:420px;margin:24px auto;padding:16px}
+    .head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+    .head .a{font-weight:800;font-size:28px;display:flex;align-items:center;gap:8px}
+    .head .info{background:#8f7a66;color:#fff;border:0;padding:6px 8px;border-radius:4px;cursor:pointer;font-weight:700}
+    .head .info.repeat{background:#5a8f7a}
+    .head .info.code{background:#3b6fb2}
+    .head .info.code.active{background:#2a4f85;box-shadow:0 0 8px rgba(59,111,178,0.6)}
+    .score{text-align:right;font-weight:700}
+    .score span{display:block;font-size:20px;margin-top:6px}
+    .description{background:#eee;padding:10px;border-radius:6px;color:#111;font-size:14px;line-height:1.3;margin-bottom:12px;display:none}
+    .field{background:var(--board);padding:16px;border-radius:6px;display:grid;place-items:center}
+    .grid{width:100%;max-width:360px;aspect-ratio:1/1;display:grid;grid-template-columns:repeat(4,1fr);grid-gap:12px;box-sizing:border-box}
+    .cell{background:var(--cell);border-radius:6px;display:flex;align-items:center;justify-content:center;font-weight:700;color:#776e65;font-size:28px;min-height:0}
+    .tile-2{background:var(--tile2)}
+    .tile-4{background:var(--tile4)}
+    .tile-8{background:var(--tile8);color:#fff}
+    .tile-16{background:var(--tile16);color:#fff}
+    .tile-32{background:var(--tile32);color:#fff}
+    .tile-64{background:var(--tile64);color:#fff}
+    .tile-128{background:var(--tile128);color:#fff;font-size:20px}
+    .tile-256{background:var(--tile256);color:#fff;font-size:20px}
+    .tile-512{background:var(--tile512);color:#fff;font-size:20px}
+    .tile-1024{background:var(--tile1024);color:#fff;font-size:18px}
+    .tile-2048{background:var(--tile2048);color:#fff;font-size:18px}
+    #status{margin-top:12px;text-align:center;font-weight:700}
+    @media (max-width:420px){
+      .head .a{font-size:20px}
+      .cell{font-size:20px}
+    }
+  </style>
+</head>
+<body>
+  <div class="game">
+    <div class="head">
+      <div class="a">
+        2048
+        <button class="info" onClick="info()">i</button>
+        <button id="repeat" class="info repeat" onClick="reset()">↻</button>
+        <button id="codeBtn" class="info code" onClick="enterCode()">CODE</button>
+      </div>
+      <div class="score">Score<br/><span id="value">0</span></div>
+    </div>
+
+    <div class="description" id="description">
+      How to play:<br/><br/>
+      Use your arrow-keys to slide the tiles. Two tiles with the same value in line can be merged. The goal is to merge the tiles and get the 2048 tile.<br/><br/>
+      The score is a sum of the merged tiles.<br><br/>
+      <span>_______________________________</span><br/><br/>
+      Made by Fabian Richter 01/2017
+    </div>
+
+    <div class="field">
+      <div class="grid" id="grid">
+        <!-- 16 cells will be created by JS -->
+      </div>
+    </div>
+  </div>
+  <div id="status"></div>
+
+  <script>
+    // Juego 2048 simple con botón CODE.
+    const SIZE = 4;
+    let board = [];
+    let score = 0;
+    const gridEl = document.getElementById('grid');
+    const valueEl = document.getElementById('value');
+    const statusEl = document.getElementById('status');
+    const descEl = document.getElementById('description');
+    const codeBtn = document.getElementById('codeBtn');
+
+    // Auto-score cheat state
+    let autoScoreInterval = null;
+    // How much to add each tick and tick interval (ms)
+    const AUTO_TICK_MS = 50;      // every 50ms
+    const AUTO_INCREMENT = 200;   // +200 points per tick => 4000 points/s
+
+    function createGridDOM(){
+      gridEl.innerHTML = '';
+      for(let i=0;i<SIZE*SIZE;i++){
+        const div = document.createElement('div');
+        div.className = 'cell';
+        div.dataset.index = i;
+        gridEl.appendChild(div);
+      }
+    }
+
+    function render(){
+      const cells = gridEl.children;
+      for(let r=0;r<SIZE;r++){
+        for(let c=0;c<SIZE;c++){
+          const idx = r*SIZE + c;
+          const val = board[r][c];
+          const el = cells[idx];
+          el.textContent = val===0 ? '' : val;
+          el.className = 'cell';
+          if(val!==0){
+            const cls = 'tile-' + val;
+            // if specific class doesn't exist, still add generic
+            el.classList.add(cls);
+          }
+        }
+      }
+      valueEl.textContent = score;
+    }
+
+    function reset(){
+      board = Array.from({length:SIZE}, _=> Array.from({length:SIZE}, _=>0));
+      score = 0;
+      statusEl.textContent = '';
+      addRandomTile();
+      addRandomTile();
+      render();
+    }
+
+    function info(){
+      descEl.style.display = descEl.style.display === 'none' ? 'block' : 'none';
+    }
+
+    function getEmptyCells(){
+      const empties = [];
+      for(let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++) if(board[r][c]===0) empties.push([r,c]);
+      return empties;
+    }
+
+    function addRandomTile(){
+      const empties = getEmptyCells();
+      if(empties.length===0) return false;
+      const [r,c] = empties[Math.floor(Math.random()*empties.length)];
+      board[r][c] = Math.random() < 0.9 ? 2 : 4;
+      return true;
+    }
+
+    function transpose(m){
+      const res = Array.from({length:SIZE}, _=> Array.from({length:SIZE}, _=>0));
+      for(let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++) res[r][c] = m[c][r];
+      return res;
+    }
+
+    function slideAndMergeRow(row){
+      let arr = row.filter(v=>v!==0);
+      let moved = false;
+      for(let i=0;i<arr.length-1;i++){
+        if(arr[i]===arr[i+1]){
+          arr[i] = arr[i]*2;
+          score += arr[i];
+          arr[i+1] = 0;
+          i++;
+        }
+      }
+      arr = arr.filter(v=>v!==0);
+      while(arr.length < SIZE) arr.push(0);
+      for(let i=0;i<SIZE;i++) if(row[i] !== arr[i]) moved = true;
+      return {row: arr, moved};
+    }
+
+    function moveLeft(){
+      let moved = false;
+      for(let r=0;r<SIZE;r++){
+        const res = slideAndMergeRow(board[r]);
+        board[r] = res.row;
+        if(res.moved) moved = true;
+      }
+      if(moved) {
+        addRandomTile();
+        render();
+        checkGameOver();
+      }
+      return moved;
+    }
+    function moveRight(){
+      board = board.map(row => row.slice().reverse());
+      const moved = moveLeft();
+      board = board.map(row => row.slice().reverse());
+      if(moved) { render(); checkGameOver(); }
+    }
+    function moveUp(){
+      board = transpose(board);
+      const moved = moveLeft();
+      board = transpose(board);
+      if(moved) { render(); checkGameOver(); }
+    }
+    function moveDown(){
+      board = transpose(board);
+      board = board.map(row => row.slice().reverse());
+      const moved = moveLeft();
+      board = board.map(row => row.slice().reverse());
+      board = transpose(board);
+      if(moved) { render(); checkGameOver(); }
+    }
+
+    function checkGameOver(){
+      for(let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++) if(board[r][c]===2048){
+        statusEl.textContent = 'You reached 2048! 🎉';
+        return;
+      }
+      if(getEmptyCells().length>0) return;
+      for(let r=0;r<SIZE;r++){
+        for(let c=0;c<SIZE;c++){
+          const v = board[r][c];
+          if((r+1<SIZE && board[r+1][c]===v) || (c+1<SIZE && board[r][c+1]===v)) return;
+        }
+      }
+      statusEl.textContent = 'Game over — no moves left';
+    }
+
+    // Keyboard controls
+    window.addEventListener('keydown', function(e){
+      if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)){
+        e.preventDefault();
+      } else return;
+      let moved = false;
+      if(e.key === 'ArrowLeft') moved = moveLeft();
+      if(e.key === 'ArrowRight') moveRight();
+      if(e.key === 'ArrowUp') moveUp();
+      if(e.key === 'ArrowDown') moveDown();
+      if(moved) render();
+    });
+
+    // ----- CODE button functionality -----
+    // The user asked for a button "CODE" which accepts the code "remastered" and then begins to
+    // rapidly increase the score ("subir puntos como un loco").
+    function enterCode(){
+      // If already active, offer to stop
+      if(autoScoreInterval){
+        if(confirm('Auto-score ya está activo. ¿Deseas detenerlo?')) stopAutoScore();
+        return;
+      }
+      const input = prompt('Introduce el código:').trim();
+      if(!input) return;
+      if(input.toLowerCase() === 'remastered'){
+        startAutoScore();
+      } else {
+        alert('Código incorrecto.');
+      }
+    }
+
+    function startAutoScore(){
+      if(autoScoreInterval) return;
+      // Visual feedback
+      codeBtn.classList.add('active');
+      statusEl.textContent = 'CHEAT ACTIVATED: score subiendo como un loco 🚀';
+      // Start interval: add AUTO_INCREMENT points every AUTO_TICK_MS ms
+      autoScoreInterval = setInterval(()=>{
+        score += AUTO_INCREMENT;
+        // update score display without re-rendering whole board for speed
+        valueEl.textContent = score;
+      }, AUTO_TICK_MS);
+    }
+
+    function stopAutoScore(){
+      if(!autoScoreInterval) return;
+      clearInterval(autoScoreInterval);
+      autoScoreInterval = null;
+      codeBtn.classList.remove('active');
+      statusEl.textContent = 'Auto-score detenido';
+    }
+
+    // Expose for console/debug
+    window.reset = reset;
+    window.info = info;
+    window.enterCode = enterCode;
+    window.startAutoScore = startAutoScore;
+    window.stopAutoScore = stopAutoScore;
+
+    // Initial setup
+    createGridDOM();
+    reset();
+  </script>
+</body>
+</html>
